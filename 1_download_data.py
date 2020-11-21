@@ -1,5 +1,5 @@
 """
-Modul to save MARC21 data into database
+Modul to save MARC21 data from DNB into database
 """
 
 import sqlite3
@@ -89,24 +89,33 @@ def progressBar(iterable, prefix = 'Progress:', suffix = 'Complete', decimals = 
     #--- Print New Line on Complete
     print()
 
-def get_not_downloaded_isbns():
+def get_not_downloaded_isbns(all_isbns, downloaded_isbns):
     """
     Identifiy ISBNs, which haven't been downloaded
+    @params:
+        all_isbns   - Required  : all isbns (pd.Series)
+        all_isbns   - Required  : already downlaoded isbns (pd.Series)
+    @returns:
+        to_download : isbns to download (list)
     """
-    catalog_isbns = pd.read_sql("SELECT ISBN FROM Books", conn).ISBN.to_list()
-    downloaded_MARC21_isbns = pd.read_sql("SELECT ISBN FROM Downloaded", conn).ISBN.to_list()
-    to_download = list(set(catalog_isbns).difference(downloaded_MARC21_isbns))
+    all_isbns = all_isbns.to_list()
+    downloaded_isbns = downloaded_isbns.to_list()
+    to_download = list(set(all_isbns).difference(downloaded_isbns))
     to_download.sort()
     return to_download
 
-#-- connect to database and load ibsns
+#-- connect to database and load data
 conn = sqlite3.connect('book_database.db')
+catalog = pd.read_sql("SELECT * FROM Books", conn)
+downloaded = pd.read_sql("SELECT * FROM Downloaded", conn)
 
 #-- load dnb access token
 with open('dnb_key.txt', 'r') as f:
     dnb_access_token = f.read()
 
-#-- Download
-isbns_to_download = get_not_downloaded_isbns()
+#-- Determin isbns to download
+isbns_to_download = get_not_downloaded_isbns(catalog.ISBN, downloaded.ISBN)
+
+#-- Download MARC Data from DNB form choosen isbns
 for isbn in progressBar(isbns_to_download, prefix='Download Progress'):
     download_dnb_data(isbn, dnb_access_token, conn)
