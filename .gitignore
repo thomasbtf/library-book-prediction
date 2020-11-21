@@ -2,3 +2,4 @@
 scripts/.ipynb_checkpoints
 scripts/*ipynb
 dnb_key.txt
+book_database.db
