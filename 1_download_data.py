@@ -7,6 +7,7 @@ import pandas as pd
 import requests
 from xml.etree import ElementTree
 from datetime import datetime
+from bs4 import BeautifulSoup
 
 def download_dnb_data(isbn, accessToken, connection):
     """
@@ -104,18 +105,53 @@ def get_not_downloaded_isbns(all_isbns, downloaded_isbns):
     to_download.sort()
     return to_download
 
+def get_blurb_text(isbn, blurb_link):
+    #- request website
+    r = requests.get(blurb_link)
+
+    #-- if request was successfull
+    if r.status_code == 200:
+        #-- get body text
+        soup = BeautifulSoup(r.content, 'html.parser')
+        blurb_text = " ".join(BeautifulSoup(r.content, 'html.parser').p.get_text(" ").split())
+        #-- save blurb text to databse
+        try:
+            pd.DataFrame([{'ISBN' : isbn, 'text' : blurb_text}]).to_sql('Blurbs', conn, if_exists='append', index=False)
+        except Exception as e:
+            print('%s %s - ISBN already recorded in Blurbs' %(datetime.now(), e))
+
+    #-- if request was NOT successfull
+    else:
+        print('%s Got error %s' % (datetime.now().strftime("%H:%M"), r.status_code))
+
 #-- connect to database and load data
 conn = sqlite3.connect('book_database.db')
 catalog = pd.read_sql("SELECT * FROM Books", conn)
-downloaded = pd.read_sql("SELECT * FROM Downloaded", conn)
+downloaded_marc21 = pd.read_sql("SELECT ISBN FROM Downloaded WHERE MARC21 IS NOT NULL;", conn)
 
 #-- load dnb access token
 with open('dnb_key.txt', 'r') as f:
     dnb_access_token = f.read()
 
 #-- Determin isbns to download
-isbns_to_download = get_not_downloaded_isbns(catalog.ISBN, downloaded.ISBN)
+isbns_to_download = get_not_downloaded_isbns(catalog.ISBN, downloaded_marc21.ISBN)
 
 #-- Download MARC Data from DNB form choosen isbns
-for isbn in progressBar(isbns_to_download, prefix='Download Progress'):
-    download_dnb_data(isbn, dnb_access_token, conn)
+if len(isbns_to_download)>0:
+    for isbn in progressBar(isbns_to_download, prefix='Download Progress'):
+        download_dnb_data(isbn, dnb_access_token, conn)
+
+#-- Load blurb links and already downloaded blurb
+blurb_links = pd.read_sql("SELECT * FROM MARC21 WHERE tag == 856 AND value LIKE '%http://deposit.%'", conn)
+blurb_downloaded =  pd.read_sql("SELECT DISTINCT ISBN FROM Blurbs", conn)
+
+#-- Select burbs to download
+isbns_to_download = get_not_downloaded_isbns(blurb_links.ISBN, blurb_downloaded.ISBN)
+blurb_links = blurb_links[blurb_links.ISBN.isin(isbns_to_download)]
+
+#-- Download selected blurbs
+if len(blurb_links)>0:
+    for isbn, link in progressBar(list(zip(blurb_links.ISBN.to_list(), blurb_links.value.to_list())),  prefix='Download Progress'):
+        get_blurb_text(isbn, link)
+
+    
