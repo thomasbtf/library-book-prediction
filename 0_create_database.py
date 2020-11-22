@@ -40,10 +40,19 @@ conn.commit()
 #-- Create downloaded table
 query = '''CREATE TABLE Downloaded (
     ISBN VARCHAR NOT NULL,
-    MARC21 int NOT NULL,
+    MARC21 ints,
+    Blurb int,
     PRIMARY KEY (ISBN))'''
 c.execute(query)
-
 conn.commit()
+
+query = '''CREATE TABLE Blurb (
+    ISBN VARCHAR NOT NULL,
+    text text NOT NULL,
+    PRIMARY KEY (ISBN)
+    )'''
+conn.execute(query)
+conn.commit()
+
 
 conn.close()
