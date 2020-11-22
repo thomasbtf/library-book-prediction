@@ -116,9 +116,9 @@ def get_blurb_text(isbn, blurb_link):
         blurb_text = " ".join(BeautifulSoup(r.content, 'html.parser').p.get_text(" ").split())
         #-- save blurb text to databse
         try:
-            pd.DataFrame([{'ISBN' : isbn, 'text' : blurb_text}]).to_sql('Blurbs', conn, if_exists='append', index=False)
+            pd.DataFrame([{'ISBN' : isbn, 'text' : blurb_text, 'blurb_link' : blurb_link}]).to_sql('Blurbs', conn, if_exists='append', index=False)
         except Exception as e:
-            print('%s %s - ISBN already recorded in Blurbs' %(datetime.now(), e))
+            print('%s %s - ISBN %s already recorded in Blurbs' %(datetime.now().strftime("%H:%M"), e, isbn))
 
     #-- if request was NOT successfull
     else:
@@ -142,7 +142,7 @@ if len(isbns_to_download)>0:
         download_dnb_data(isbn, dnb_access_token, conn)
 
 #-- Load blurb links and already downloaded blurb
-blurb_links = pd.read_sql("SELECT * FROM MARC21 WHERE tag == 856 AND value LIKE '%http://deposit.%'", conn)
+blurb_links = pd.read_sql("SELECT * FROM MARC21 WHERE tag == 856 AND value LIKE '%http://deposit.dnb.de/cgi-bin%'", conn)
 blurb_downloaded =  pd.read_sql("SELECT DISTINCT ISBN FROM Blurbs", conn)
 
 #-- Select burbs to download
@@ -154,4 +154,10 @@ if len(blurb_links)>0:
     for isbn, link in progressBar(list(zip(blurb_links.ISBN.to_list(), blurb_links.value.to_list())),  prefix='Download Progress'):
         get_blurb_text(isbn, link)
 
-    
+
+# # 9783280034606
+# # 9783314102288
+# # 9783328100898
+# blurb_links = pd.read_sql("SELECT * FROM MARC21 WHERE tag == 856 AND value LIKE '%http://deposit.dnb.de/cgi-bin%' AND ISBN ==9783314102288", conn)
+# print(blurb_links.value[0])
+# print(blurb_links.value[1])
